@@ -8,6 +8,7 @@ RSpec.describe "Graphql, repo query" do
     query($id: ID!) {
       repo(id: $id) {
         name
+        nameReversed
         url
       }
     }
@@ -19,8 +20,12 @@ RSpec.describe "Graphql, repo query" do
       "repo" => 
         {
           "name" => repo.name,
+          "nameReversed" => repo.name.reverse,
           "url" => repo.url,
         }
     )
   end
 end
+
+
+#oreH opeR
