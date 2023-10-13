@@ -44,5 +44,13 @@ module Types
     end
     
 
+    field :category, CategoryType, null: false do 
+      argument :id, ID, required: true
+    end
+
+    def category(id: )
+      Category.find(id)
+    end
+
   end
 end

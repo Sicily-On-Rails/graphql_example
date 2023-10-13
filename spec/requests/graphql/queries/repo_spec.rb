@@ -26,6 +26,3 @@ RSpec.describe "Graphql, repo query" do
     )
   end
 end
-
-
-#oreH opeR
