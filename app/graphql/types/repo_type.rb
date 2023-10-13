@@ -4,6 +4,7 @@ module Types
         field :name, String, null: false
         field :url, String, null: false
         field :name_reversed, String, null: false
+        field :categories, [Types::CategoryType], null: false
 
         def name_reversed
             object.name.reverse

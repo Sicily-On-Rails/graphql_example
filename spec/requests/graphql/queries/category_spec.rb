@@ -2,12 +2,19 @@ require 'rails_helper'
 
 RSpec.describe "Graphql, category query" do
   let!(:category) { Category.create!(name: "Ruby") }
+  let!(:repo) do
+    Repo.create!(name: "Grapql example", url: "https://github.com", categories: [category]) 
+  end
 
   it "retrieves a single category" do
     query = <<~QUERY
     query($id: ID!) {
       category(id: $id) {
         name
+        repos{
+          name
+          url
+        }
       }
     }
     QUERY
@@ -18,6 +25,12 @@ RSpec.describe "Graphql, category query" do
       "category" => 
         {
           "name" => category.name,
+          "repos" => [
+            {
+              "name" => repo.name,
+              "url" => repo.url,
+            }
+          ]
         }
     )
   end
