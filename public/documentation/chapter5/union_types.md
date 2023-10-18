@@ -84,6 +84,7 @@ Nel codice sopra, stiamo dichiarando che un repository può avere molte recensio
 
 Adesso scriviamo un test per il nostro tipo di unione. Inizieremo scrivendo un test che garantisce che possiamo effettuare una query per le attività di un repository e ottenere sia i "Like" che le recensioni:
 
+`spec/requests/graphql/queries/repo_activities_spec.rb`
 ```ruby
 require 'rails_helper'
     RSpec.describe "Graphql, repo query, with activity" do
