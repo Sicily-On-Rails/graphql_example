@@ -317,3 +317,108 @@ Questa mutazione non ha bisogno di ricevere gli argomenti di valutazione e comme
 Ora eseguiamo di nuovo il nostro test e verifichiamo se abbiamo posizionato tutto al posto giusto.
 
 Fantastico! Ora siamo in grado di non solo creare e aggiornare recensioni nella nostra app, ma anche eliminarle.
+
+#### Limitare le valutazioni delle recensioni con gli enum
+Una cosa che potresti aver notato in precedenza per le recensioni è che stavamo utilizzando una valutazione a stelle tra 1 e 5, ma le nostre mutazioni delle recensioni non limitano l'input della valutazione in questo modo. Anche il tipo `ReviewType` utilizzato per visualizzare il valore restituito per le mutazioni e le query non ha questa restrizione. Ciò significa che il nostro sistema consentirebbe l'inserimento di qualsiasi valore per la valutazione. Preferiremmo che le persone si attenessero alla nostra scala di valutazione e non inventassero la propria.
+
+GraphQL ci consente di specificare tale restrizione in modo semplice, utilizzando un concetto chiamato tipo enum. Un tipo enum è un tipo che può avere solo un certo insieme di valori. Nel nostro caso, i valori validi saranno solo i numeri da 1 a 5.
+
+Possiamo aggiungere un nuovo tipo che definisce la scala di valutazione e quindi utilizzare questo tipo nella nostra applicazione per limitare la scala di valutazione solo ai numeri tra 1 e 5.
+
+Cominciamo aggiungendo questo tipo enum:
+
+`app/graphql/types/review_rating.rb`
+
+```ruby
+class Types::ReviewRating < Types::BaseEnum
+    value "ONE_STAR", value: 1
+    value "TWO_STARS", value: 2
+    value "THREE_STARS", value: 3
+    value "FOUR_STARS", value: 4
+    value "FIVE_STARS", value: 5
+end
+```
+
+Si tratta di un semplice tipo enum che definisce i valori che vogliamo consentire per la nostra scala di valutazione. Abbiamo assegnato a ciascun valore un nome e un valore. Il nome è ciò che useremo nelle nostre query e mutazioni GraphQL, e il valore è ciò a cui quella stringa si traduce quando la utilizziamo nel nostro codice GraphQL.
+
+Per utilizzare questo nuovo tipo, dovremo apportare alcune modifiche in diversi punti. Iniziamo con il test della mutazione `Reviews::Add`. Modificheremo questo test per utilizzare il nuovo tipo di valutazione delle recensioni, cominciando dalla query GraphQL:
+
+`spec/requests/graphql/mutations/reviews/add_spec.rb`
+```ruby
+#....
+query = <<~QUERY
+    mutation ($id: ID!, $rating: ReviewRating!, $comment: String!) {
+        addReview(input: { repoId: $id, rating: $rating, comment: $comment }) {
+            id
+            rating
+        }
+    }       
+QUERY
+#....
+```
+
+Questa query è stata modificata per specificare il tipo ReviewRating per la variabile $rating. Ciò garantirà che la variabile `$rating` possa essere solo uno dei valori specificati dal nostro tipo enum.
+
+Per specificare un valore enum come variabile, aggiorneremo il metodo `post` del nostro test in questo modo:
+
+
+```ruby
+#....
+ post "/graphql", params: { 
+        query: query,
+        variables: {
+            id: repo.id,
+            rating: "FIVE_STARS",
+            comment: "What a repo!"
+        }
+    }
+#....
+```
+
+La variabile di `rating` è ora una stringa, e stiamo utilizzando il nome del valore enum, come specificato nel tipo di valutazione. Infine, aggiorneremo anche l'asserzione alla fine del test per verificare che questo valore venga restituito dalla nostra mutazione:
+
+```ruby
+expect(response.parsed_body).not_to have_errors
+    expect(response.parsed_body["data"]).to eq(
+    "addReview" => {
+        "id" => Review.last.id.to_s,
+        "rating" => "FIVE_STARS",
+    }
+)
+```
+
+Vediamo se supera il test
+
+```sh
+Failure/Error:
+    expect(response.parsed_body["data"]).to eq(
+        "addReview" => {
+        "id" => Review.last.id.to_s,
+        "rating" => "FIVE_STARS",
+        }   
+    )
+    expected: {"addReview"=>{"id"=>"1", "rating"=>"FIVE_STARS"}}
+    got: {"addReview"=>{"id"=>"1", "rating"=>"5"}}
+
+    (compared using ==)
+    
+    Diff:
+    @@ -1 +1 @@
+    -"addReview" => {"id"=>"1", "rating"=>"FIVE_STARS"},
+    +"addReview" => {"id"=>"1", "rating"=>"5"},
+```
+
+No, il test non è passato. Questo perché la nostra classe `ReviewType` deve essere aggiornata per utilizzare anche questo nuovo enum `ReviewRating` per il suo campo di `rating`(valutazione). Aggiorniamolo ora:
+
+`app/graphql/types/review_type.rb`
+
+```ruby
+module Types
+    class ReviewType < Types::BaseObject
+        field :id, ID, null: false
+        field :rating, ReviewRating, null: false
+        field :comment, String, null: false
+    end
+end
+```
+

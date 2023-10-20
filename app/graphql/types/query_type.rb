@@ -35,6 +35,8 @@ module Types
       Repo.all 
     end
 
+
+
     field :repo, RepoType, null: false do
       argument :id, ID, required: true 
     end
@@ -42,6 +44,7 @@ module Types
     def repo(id:)
       Repo.find(id)
     end
+
     
 
     field :category, CategoryType, null: false do 

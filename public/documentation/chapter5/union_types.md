@@ -29,12 +29,12 @@ query ($id: ID!) {
 
 ```
 
-Il campo "__typename" che stiamo selezionando qui restituirà il tipo per ciascuna singola attività. Sarà o "Review" o "Like". Lo useremo successivamente nei nostri test per verificare quale tipo viene restituito dalla nostra query.
-La sintassi "… on" in GraphQL indica al nostro API quali campi vogliamo che siano risolti per ciascun tipo individuale dell'unione. Se un record di attività restituisce un "Like", vogliamo sapere quando è stato creato. Se restituisce una "Review", vogliamo conoscere la valutazione e il commento.
-Per implementare questo, creeremo un modello per rappresentare i "Like" per un repository, nonché un modello per rappresentare il flusso di attività per un repository. Successivamente scriveremo un test per questo tipo di unione e lo implementeremo nell'API GraphQL.
+Il campo "__typename" che stiamo selezionando qui restituirà il tipo per ciascuna singola attività. Sarà o `Review` o `Like`. Lo useremo successivamente nei nostri test per verificare quale tipo viene restituito dalla nostra query.
+La sintassi `… on` in GraphQL indica alla nostra API quali campi vogliamo che siano risolti per ciascun tipo individuale dell'unione. Se un record di attività restituisce un `Like`, vogliamo sapere quando è stato creato. Se restituisce una `Review`, vogliamo conoscere la valutazione e il commento.
+Per implementare questo, creeremo un modello per rappresentare i `Like` per un repository, nonché un modello per rappresentare il flusso di attività per un repository. Successivamente scriveremo un test per questo tipo di unione e lo implementeremo nell'API GraphQL.
 
 #### Impostiamo i modelli
-Iniziamo creando un modello per rappresentare i "Like" per i repository. In alcune applicazioni, potremmo voler collegare questi modelli agli utenti. Tuttavia, al momento la nostra applicazione non dispone di una rappresentazione degli utenti, quindi il nostro modello conterrà solo un timestamp di quando è stato creato il "Like" e un collegamento al repository che è stato apprezzato.
+Iniziamo creando un modello per rappresentare i `Like` per i repository. In alcune applicazioni, potremmo voler collegare questi modelli agli utenti. Tuttavia, al momento la nostra applicazione non dispone di una rappresentazione degli utenti, quindi il nostro modello conterrà solo un timestamp di quando è stato creato il "Like" e un collegamento al repository che è stato apprezzato.
 Creiamo ora questo modello:
 
 ```sh

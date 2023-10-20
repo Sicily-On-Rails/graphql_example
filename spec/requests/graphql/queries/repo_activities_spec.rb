@@ -4,10 +4,12 @@ require 'rails_helper'
     let!(:repo) { Repo.create!(name: "Repo Hero", url: "https://github.com/repohero/repohero") }
 
     before do
-        review = repo.reviews.create!(rating: 5, comment: "Review")
-        like = repo.likes.create!
-        repo.activities.create(event: review)
-        repo.activities.create(event: like)
+        10.times do |i|
+            review = repo.reviews.create!(rating: 5, comment: "Review #{i}")
+            like = repo.likes.create!
+            repo.activities.create(event: review)
+            repo.activities.create(event: like)
+        end
     end
 
     it "retrieves a single repo with a list of activities" do
