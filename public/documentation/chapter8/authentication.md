@@ -160,7 +160,7 @@ module Mutations
 end
 ```
 
-Questa classe di mutazione definisce il comportamento per risolvere la mutazione di registrazione. Tenterà di creare un utente nel modo tradizionale di Rails: chiamando il metodo create su un modello. Quando questa mutazione viene risolta, userà il tipo SignupResult per rappresentare il risultato di questa mutazione. Definiamo questo tipo ora:
+Questa classe di mutazione definisce il comportamento per risolvere la mutazione di registrazione. Tenterà di creare un utente nel modo tradizionale di Rails: chiamando il metodo `create` su un modello. Quando questa mutazione viene risolta, userà il tipo `SignupResult` per rappresentare il risultato di questa mutazione. Definiamo questo tipo ora:
 
 `app/graphql/types/signup_result.rb`
 
@@ -178,5 +178,14 @@ module Types
 end
 ```
 
-Questo tipo definisce i campi che saranno restituiti quando la mutazione viene risolta. L'oggetto che questo tipo utilizzerà è un'istanza di Utente. Questa istanza dovrebbe avere un campo email che possiamo utilizzare in questo tipo SignupResult. Il campo del token è un po' più complicato da implementare, quindi metteremo un valore fittizio per ora in modo da poter vedere il superamento del nostro test. Torneremo più avanti per definire un token appropriato.
+Questo tipo definisce i campi che saranno restituiti quando la mutazione viene risolta. L'oggetto che questo tipo utilizzerà è un'istanza di `Utente`. Questa istanza dovrebbe avere un campo `email` che possiamo utilizzare in questo tipo `SignupResult`. Il campo del token è un po' più complicato da implementare, quindi metteremo un valore fittizio per ora in modo da poter vedere il superamento del nostro test. Torneremo più avanti per definire un token appropriato.
 Con tutta questa configurazione, ora il nostro test passerà:
+
+`bundle exec rspec spec/requests/graphql/mutations/users/sign_up_spec.rb`
+
+```sh
+1 example, 0 failures
+```
+#### Gestione delle registrazioni non valide
+Ora che abbiamo gestito il percorso felice per la registrazione di un utente, vediamo cosa succede quando un utente si registra con dati non validi, come un indirizzo email mancante. Inizieremo scrivendo un test per questo:
+

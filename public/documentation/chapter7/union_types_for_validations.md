@@ -52,7 +52,7 @@ Prima di poter far sì che la nostra API GraphQL mostri messaggi di validazione,
 class Review < ApplicationRecord
     belongs_to :repo
     
-    validates :rating, presence: true, numericality: { between: 1..5 }
+    validates :rating, presence: true, numericality: { in: 1..5 }
     validates :comment, presence: true
 end
 ```
@@ -291,6 +291,7 @@ bundle add dry-monads
 ```
 
 Questa gemma fornisce una serie di `monads` utili che possiamo utilizzare per rappresentare il successo o il fallimento della nostra mutazione. Utilizzeremo il monad `Dry::Monads::Result` per rappresentare il successo o il fallimento della nostra mutazione. Per utilizzare questa gemma, aggiungeremo questa direttiva `include` all'inizio della classe di mutazione `Reviews::Add`:
+
 
 ```ruby
 module Mutations
