@@ -563,6 +563,4 @@ Questo metodo restituirà l'utente attualmente connesso o nil se non c'è alcun 
 ```sh
 1 example, 0 failures
 ```
-Ottimo! Ora possiamo passare un token JWT alla nostra API GraphQL e far sì che l'API riconosca quale utente è connesso. Con questa nuova funzionalità, saremo in grado di associare le recensioni all'utente che le ha create e, in seguito, consentire solo agli utenti che hanno creato tali recensioni di modificarle. Questi saranno i prossimi due compiti che affronteremo qui.
-
-Associare gli utenti alle reviews
+Ottimo! Ora possiamo passare un token JWT alla nostra API GraphQL e far sì che l'API riconosca quale utente è connesso.

@@ -3,5 +3,13 @@
             field :id, ID, null: false
             field :rating, ReviewRating, null: false
             field :comment, String, null: false
+
+
+            field :user, UserType, null: false
+
+            def user
+                dataloader.with(Source::ActiveRecord, User).load(object.user_id)     
+            end
+
         end
     end
