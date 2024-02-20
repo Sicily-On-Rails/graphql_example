@@ -6,8 +6,8 @@ module Types
     field :update_review, mutation: Mutations::Reviews::Update
     field :delete_review, mutation: Mutations::Reviews::Delete
 
-    field :signup, mutation: Mutation::Users::Signup
-    field :login, mutation: Mutation::Users::Login
+    field :signup, mutation: Mutations::Users::SignUp
+    field :login, mutation: Mutations::Users::Login
     
     # TODO: remove me
     field :test_field, String, null: false,
