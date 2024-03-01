@@ -1,4 +1,4 @@
-#### Union Types
+# Union Types
 
 I tipi di unione in GraphQL sono ciò che utilizziamo quando un campo può risolversi in due o più valori potenziali.
 Nel capitolo precedente abbiamo aggiunto delle recensioni ai repository. In questo capitolo, aggiungeremo un nuovo tipo di attività che un utente può eseguire su un repository: un "Like". 
@@ -29,11 +29,36 @@ query ($id: ID!) {
 
 ```
 
+La query corretta è la seguente:
+```ruby
+query ($id: ID!) {
+    repo(id: $id) {
+        name
+        url
+        activities{
+            nodes{
+                event{
+                __typename
+                ...on Review{
+                    rating
+                    comment
+                }
+                ...on Like{
+                    createdAt
+                }
+                }
+            }
+        }
+    }
+ }
+
+```
+
 Il campo "__typename" che stiamo selezionando qui restituirà il tipo per ciascuna singola attività. Sarà o `Review` o `Like`. Lo useremo successivamente nei nostri test per verificare quale tipo viene restituito dalla nostra query.
 La sintassi `… on` in GraphQL indica alla nostra API quali campi vogliamo che siano risolti per ciascun tipo individuale dell'unione. Se un record di attività restituisce un `Like`, vogliamo sapere quando è stato creato. Se restituisce una `Review`, vogliamo conoscere la valutazione e il commento.
 Per implementare questo, creeremo un modello per rappresentare i `Like` per un repository, nonché un modello per rappresentare il flusso di attività per un repository. Successivamente scriveremo un test per questo tipo di unione e lo implementeremo nell'API GraphQL.
 
-#### Impostiamo i modelli
+## Impostiamo i modelli
 Iniziamo creando un modello per rappresentare i `Like` per i repository. In alcune applicazioni, potremmo voler collegare questi modelli agli utenti. Tuttavia, al momento la nostra applicazione non dispone di una rappresentazione degli utenti, quindi il nostro modello conterrà solo un timestamp di quando è stato creato il "Like" e un collegamento al repository che è stato apprezzato.
 Creiamo ora questo modello:
 
@@ -106,18 +131,20 @@ require 'rails_helper'
                     name
                     activities {
                         nodes {
-                        __typename
-                        ... on Review {
-                            rating
-                            comment
+                            event{ 
+                                __typename
+                                ... on Review {
+                                    rating
+                                    comment
+                                }
+                                ... on Like {
+                                    createdAt
+                                }
+                            }
                         }
-                        ... on Like {
-                            createdAt
-                        }
-                    }
+                    }   
                 }
             }
-        }
         QUERY
 
         post "/graphql", params: { query: query, variables: { id: repo.id } }
@@ -212,3 +239,289 @@ Con il nuovo campo e i tre nuovi tipi (ActivityType, EventType e LikeType) confi
 Ottimo! Per risolvere le attività per un repository, abbiamo definito un nuovo campo chiamato "activities" nella classe RepoType. Successivamente, per risolvere l'evento rilevante per un'attività, abbiamo definito la classe ActivityType per restituire una classe di unione EventType. Questa classe viene quindi utilizzata per risolvere gli eventi in oggetti che verranno risolti utilizzando le classi LikeType o ReviewType.
 
 I tipi di unione in GraphQL sono molto utili quando abbiamo più di un singolo tipo di oggetto che desideriamo restituire per lo stesso campo. Ma questa non è l'unica loro utilità. 
+
+## Utilizzare i tipi di unione per gli errori
+Quando cerchiamo un repository con la nostra API GraphQL, utilizziamo una query in questa forma:
+
+```ruby
+query ($id: ID!) {
+    repo(id: $id) {
+        name
+        url
+    }
+}
+```
+
+Se passiamo un ID che non esiste, riceveremo un messaggio di errore simile a questo:
+
+```sh
+{"errors":[{"message":"Couldn't find Repo with 'id'=100","backtrace": ...
+```
+(Nota: la traccia dello stack qui verrà visualizzata solo in ambienti non di produzione!)
+
+Sebbene questo messaggio di errore sia in qualche modo indicativo dell'errore effettivo, non ci fornisce un modo diretto per differenziarlo da qualsiasi altro messaggio di errore che potrebbe verificarsi durante la ricerca di un repository. Quello che possiamo fare qui è fornire un chiaro indicatore al consumatore di questa API che un'operazione di ricerca è fallita, e possiamo fornire tale indicatore utilizzando un tipo di unione.
+
+Cominciamo aggiungendo un nuovo test a `spec/requests/graphql/queries/repo_spec.rb` per una query che utilizza il nostro nuovo tipo di unione:
+
+```ruby
+#...
+it "shows an error message when a repo cannot be found" do
+    query = <<~QUERY
+    query ($id: ID!) {
+      repo(id: $id) {
+        __typename
+        ...on NotFound {
+          message
+        }
+        ...on Repo {
+          name
+          nameReversed
+          url
+        }
+      }
+    }
+    QUERY
+
+    post "/graphql", params: { query: query, variables: { id: 'not-an-id' } }
+    expect(response.parsed_body).not_to have_errors
+    expect(response.parsed_body["data"]).to eq(
+      "repo" => {
+        "__typename" => "NotFound",
+        "message" => "Could not find a repository with id='not-an-id'",
+      }
+    )
+  end
+#...
+```
+Il primo test in questo file fallirà non appena aggiungeremo il nostro tipo di unione. Per evitare che mostri i suoi fallimenti per il momento, eseguiremo solo questo nuovo test utilizzando il comando `bundle exec rspec spec/requests/graphql/queries/repo_spec.rb -e 'cannot be found'`.
+L'opzione `-e`, troverà l'esempio con le parole `"cannot be found"` e eseguirà solo quell'esempio. Quando eseguiamo questo test, vedremo questo output:
+
+```sh
+
+ 1) Graphql, repo query shows an error message when a repo cannot be found
+     Failure/Error: expect(response.parsed_body).not_to have_errors
+
+       Expected there to be no errors, but there were:
+       [
+         {
+           "message": "No such type NotFound, so it can't be a fragment condition",
+```
+
+Il tipo `NotFound` non esiste ancora nel nostro schema GraphQL, ed è per questo che il test sta fallendo. Aggiungiamo ora questo tipo:
+
+`app/graphql/types/not_found_type.rb`
+
+```ruby
+module Types
+    class NotFoundType < Types::BaseObject
+        field :message, String, null: false
+    end
+end
+```
+Per utilizzare questo nuovo tipo, definiremo una nuova classe di tipo unione chiamata `RepoResultType` che può restituire sia questo nuovo tipo che un `RepoType`:
+
+`app/graphql/types/repo_result_type.rb`
+
+```ruby
+module Types
+    class RepoResultType < Types::BaseUnion
+        possible_types RepoType, NotFoundType
+        
+        def self.resolve_type(object, context)
+            if object.is_a?(Repo)
+                RepoType
+            else
+                NotFoundType
+            end
+        end
+    end
+end
+```
+Questo nuovo tipo unione restituirà sia un `RepoType` che un `NotFoundType`. Quando risolviamo questo tipo, verificheremo se l'oggetto è un'istanza di `Repo`. Se lo è, restituiremo `RepoType`. Se non lo è, restituiremo `NotFoundType`.
+
+Per utilizzare questo nuovo tipo unione, dovremo aggiornare il nostro campo `QueryType` per il repository in modo che utilizzi quel tipo:
+
+`app/graphql/types/query_type.rb`
+
+```ruby
+#...
+field :repo, RepoResultType, null: false do
+    argument :id, ID, required: true
+end
+#...
+```
+
+Aggiorneremo anche il metodo `repo` qui per utilizzare `find_by` invece di `find`. Quando il metodo `find_by` restituisce `nil`, restituiremo il nostro messaggio di errore:
+
+`app/graphql/types/query_type.rb`
+
+```ruby
+def repo(id:)
+    Repo.find_by(id: id) || { message: "Could not find a repository with id='#{id}'" }
+end
+```
+Quando un repository non può essere trovato, verrà risolto utilizzando il `NotFoundType`. Con questo nuovo tipo unione in posizione, possiamo eseguire nuovamente il nostro test e vedere che ora sta passando:
+
+```sh
+1 example, 0 failures
+```
+Quando non è possibile trovare un repository, la nostra API GraphQL restituirà ora un JSON con questa struttura:
+
+
+```ruby
+{
+  "data": {
+    "repo": {
+      "__typename": "NotFound",
+      "message": "Could not find a repository with id='2'"
+    }
+  }
+}
+```
+Invece, se un repository può essere trovato, avrà comunque la stessa struttura di prima:
+
+```ruby
+{
+  "data": {
+    "repo": {
+      "__typename": "Repo",
+      "name": "TTattago",
+      "url": "https://github.com/Smart-Gioiosa/visit-sicily-ttatta"
+    }
+  }
+}
+```
+
+Gli utenti della nostra API possono quindi determinare il risultato della ricerca di un repository in base al campo `__typename`. Potrebbero desiderare di visualizzare il messaggio di errore così com'è scritto, oppure potrebbero utilizzare il proprio messaggio ogni volta che vedono che viene restituito un tipo `NotFound`.
+
+## Correggiamo i nostri test
+Quando abbiamo modificato il campo repo in QueryType per risolvere ora un tipo unione, abbiamo rotto i nostri test. Possiamo vedere quali test stanno fallendo e come sono rotti eseguendo `bundle exec rspec`.
+
+Tutti questi test stanno fallendo per lo stesso motivo:
+
+```sh
+Failure/Error: expect(response.parsed_body).not_to have_errors
+
+       Expected there to be no errors, but there were:
+       [
+         {
+           "message": "Selections can't be made directly on unions (see selections on RepoResult)",
+```
+
+Questo fallimento si verifica perché i nostri test stanno cercando di selezionare campi all'interno di un repo, ma il tipo restituito è cambiato da un `RepoType` a un `RepoResultType`. Il `RepoResultType` è un'unione e ora dobbiamo indicare a GraphQL di selezionare campi dal `RepoType` all'interno di quell'unione.
+
+Dedichiamoci ora a correggere questi test. 
+
+In`spec/requests/graphql/queries/repo_activities_spec.rb`, dovremo modificare la query per effettuare una selezione sull'unione. Facciamo ciò con una chiamata `...on Repo`:
+
+```ruby
+#...
+ query = <<~QUERY
+    query ($id: ID!) {
+      repo(id: $id) {
+        ...on Repo {
+          name
+          activities {
+            nodes {
+              __typename
+              event {
+                ... on Review {
+                  rating
+                  comment
+                }
+
+                ... on Like {
+                  createdAt
+                }
+              }
+            }
+          }
+        }
+        ... on NotFound{
+            message 
+        }
+      }
+    }
+    QUERY
+#...
+
+```
+Questo risolverà il problema in questo test. Possiamo eseguirlo ora e verificare che viene superi con il comando `bundle exec rspec spec/requests/graphql/queries/repo_activities_spec.rb`:
+
+```sh
+1 example, 0 failures
+```
+
+Successivamente, correggiamo `spec/requests/graphql/queries/repo_categories_spec.rb`:
+
+```ruby
+query = <<~QUERY
+    query findRepoCategories($id: ID!) {
+      repo(id: $id) {
+        ...on Repo {
+          name
+          categories {
+            name
+          }
+        }
+      }
+    }
+    QUERY
+```
+Eseguendo questo test, vedremo ora che sta passando anche lui:
+
+```sh
+1 example, 0 failures
+```
+
+Adesso aggiorniamo `spec/requests/graphql/queries/repo_reviews_spec.rb`:
+
+```ruby
+ query = <<~QUERY
+    query ($id: ID!, $after: String) {
+      repo(id: $id) {
+        ...on Repo {
+            name
+            reviews(after: $after) {
+              nodes {
+                rating
+                comment
+              }
+              pageInfo {
+                endCursor
+              }
+            }
+          } 
+      }
+    }
+    QUERY
+```
+
+Adesso passerà acnche questo test:
+
+```sh
+1 example, 0 failures
+```
+
+Infine, dobbiamo correggere `spec/requests/graphql/queries/repo_spec.rb`:
+
+```ruby
+query = <<~QUERY
+    query($id: ID!) {
+      repo(id: $id) {
+        ... on Repo{
+          name
+          nameReversed
+          url
+        }
+      }
+    }
+    QUERY
+```
+
+Ripetiamo nuovamente il test e vedremo che adesso passerà:
+
+```sh
+2 examples, 0 failures
+```
+

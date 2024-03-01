@@ -5,7 +5,7 @@ module Types
         field :url, String, null: false
         field :name_reversed, String, null: false
         field :categories, [Types::CategoryType], null: false
-        field :reviews, ReviewType.connection_type, null: false, default_page_size: 1
+        field :reviews, ReviewType.connection_type, null: false, default_page_size: 10
         field :activities, ActivityType.connection_type, null: false
 
 

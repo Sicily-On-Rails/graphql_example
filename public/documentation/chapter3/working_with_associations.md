@@ -1,4 +1,4 @@
-## Lavorare con le associazioni
+# Lavorare con le associazioni
 Abbiamo aggiunto il modello 'Repo' alla nostra applicazione e aggiunto alcuni campi al nostro schema GraphQL in modo da poter interrogare tali repository. In questo capitolo, aggiungeremo un altro modello chiamato 'Category' e lo useremo per raggruppare i repository in categorie distinte. Alla fine di questo capitolo, saremo in grado di utilizzare l'API GraphQL per richiedere le categorie di un repository, così come i repository di una categoria. Ecco un esempio dell'ultima interrogazione che saremo in grado di eseguire:
 
 ```ruby
@@ -59,7 +59,7 @@ end
 
 ```
 
-Ora che abbiamo configurato tipicamente Rails per questi modelli, vediamo cosa ci vorrà per visualizzare questi record attraverso GraphQL.
+Ora che abbiamo configurato questi modelli Rails, vediamo cosa ci vorrà per visualizzare questi record attraverso GraphQL.
 
 #### Recuperare una singola categoria utilizzando GraphQL
 
@@ -144,7 +144,7 @@ end
 
 Questo è un tipo molto semplice per ora. Questa classe definisce il comportamento degli oggetti risolti con la classe CategoryType, e tale comportamento è che tali oggetti possono avere un campo di nome richiesto. Fortunatamente, è esattamente ciò che stiamo cercando nel nostro test al momento.
 
-#### Risoluzione dei repository per una categoria
+## Risoluzione dei repository per una categoria
 
 Quando lavoriamo con le associazioni in Rails, possiamo chiamare un metodo per accedere all'associazione. Il modo di accedere alle associazioni in GraphQL non è molto diverso. Per accedere ai repository associati alle categorie, scriviamo questa query:
 
@@ -226,7 +226,7 @@ Quando eseguiamo nuovamente il test, vedremo che ora è passato.
 Fatto! Avendo definito una classe `RepoType`, aggiungere un campo per recuperare l'elenco dei repository di una categoria è stato molto facile. Questo campo funziona utilizzando il metodo `repos` sull'oggetto `Category` che viene risolto dal nostro `CategoryType`.
 In effetti, il codice sta facendo esattamente ciò che faremmo in un'applicazione Rails: chiamare un metodo come `category.repos` per recuperare tutti i repository di una categoria. Il punto principale di differenza qui è che i `repository` per la categoria vengono recuperati solo quando li chiediamo.
 
-#### Risoluzione delle categorie per un repository
+## Risoluzione delle categorie per un repository
 
 Ora che abbiamo la possibilità di recuperare i repository di una categoria, adesso aggiungiamo la capacità di recuperare le categorie di un repository. Una query GraphQL per recuperare le categorie di un repository assomiglierebbe a questa:
 
@@ -372,3 +372,87 @@ query ($id: ID!) {
 }
 
 ```
+Potremmo, se volessimo, annidare questi in modo infinito. O peggio, qualcuno che utilizza la nostra API potrebbe annidare questi in modo infinito, portando a una query che potrebbe richiedere molto tempo per essere risolta. Questo è il lato negativo più discusso di `GraphQL`. Dobbiamo porre fine a questo problema. Per farlo, possiamo utilizzare una semplice impostazione di configurazione chiamata `max_depth`.
+
+## Configurare una profondità massima della query o complessità
+La  GraphQL Ruby ci fornisce due modi per prevenire questo annidamento infinito delle query. 
+
+Il primo è una configurazione chiamata `max_depth`, che stabilisce quanto profondamente una query può essere annidata.
+
+Il secondo è una configurazione chiamata `max_complexity`, che ci consente di costruire una query fino a una complessità specifica.
+
+### Massima Profondità `max_depth`
+
+Se apriamo il nostro file **RepoHeroSchema**, saremo in grado di aggiungere la configurazione per la profondità massima della query là:
+
+```ruby
+class RepoHeroSchema < GraphQL::Schema
+  mutation(Types::MutationType)
+  query(Types::QueryType)
+
+  max_depth 15
+  #....
+end
+```
+Una profondità di 15, potrebbe funzionare bene. Per generare la documentazione per un'API GraphQL, alcuni strumenti eseguono ciò che viene chiamata una query di `introspezione contro l'API`. 
+
+Queste hanno tipicamente una profondità nell'intervallo da 10 a 15. Quindi, impostando un max_depth di 15, consentiamo comunque che queste query di introspezione si verifichino, ma impediamo scenari peggiori in cui gli utenti dell'API potrebbero emettere query davvero profondamente nidificate.
+
+Ciò significa che la query sopra sarà in grado di essere nidificata fino a 15 volte. Se proviamo a nidificarla oltre questo limite, otterremo un errore:
+
+```sh
+{
+  "errors": [
+    {
+      "message": "Query has depth of 16, which exceeds max depth of 15"
+    }
+  ]
+}
+```
+### Complessità Massima: `max_complexity`
+Anche l'impostazione `max_complexity` può essere inserita all'interno dello schema:
+
+```ruby
+class RepoHeroSchema < GraphQL::Schema
+  mutation(Types::MutationType)
+  query(Types::QueryType)
+
+  max_depth 15
+  max_complexity 100
+  #....
+end
+```
+La "complessità" della query è definita da quanti campi distinti vengono richiesti in GraphQL. Ad esempio, questa query ha una complessità di 4:
+
+```ruby
+query{
+	repo(id:1){ # +1
+    name # +1
+    url # +1 
+    nameReversed # +1
+  }
+}
+```
+Se abbiamo un campo in qualsiasi parte della nostra API che sappiamo essere costoso da calcolare, possiamo specificare una complessità elevata per quel campo. Ad esempio, se `nameReversed` fosse in qualche modo computazionalmente costoso, potremmo specificare la complessità per quel campo in questo modo:
+
+```ruby
+field :name_reversed, String, null: false, complexity: 10
+```
+
+Questo significherebbe che la complessità della query sarebbe calcolata come:
+
+```ruby
+query{
+	repo(id:1){ # +1
+    name # +1
+    url # +1 
+    nameReversed # +10
+  }
+}
+```
+Per un totale di 13 punti di complessità.
+Possiamo utilizzare liberamente questa opzione di complessità all'interno della nostra API GraphQL per garantire che gli utenti non possano emettere query computazionalmente complesse.
+
+
+
+

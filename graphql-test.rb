@@ -6,6 +6,10 @@ operation = <<~GQL
     GQL
 =end
 
+
+
+=begin
+#Get all repositories
 query = <<~QUERY
     query {
         repos {
@@ -14,6 +18,23 @@ query = <<~QUERY
         }
     }
     QUERY
-    
+=end
+
+
+=begin
+#Get a single repository
+query = <<~QUERY
+    query{
+      repo(id: 1) {
+        name
+        nameReversed
+        url
+      }
+    }
+    QUERY
+=end
+
+
+
 result = RepoHeroSchema.execute(query)
 puts JSON.pretty_generate(result)

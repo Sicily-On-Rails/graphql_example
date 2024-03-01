@@ -1,11 +1,11 @@
-## Paginazione
+# Paginazione
 
-Repo Hero sta prendendo forma. Abbiamo repository e categorie nella nostra applicazione, ma la caratteristica principale che manca a Repo Hero sono le recensioni. 
+Repo Hero sta prendendo forma. Abbiamo repositories e categorie nella nostra applicazione, ma la caratteristica principale che manca a Repo Hero sono le recensioni. 
 Gli utenti dovrebbero poter lasciare una recensione per un repository, assegnandogli un punteggio da 1 a 5 stelle e lasciando un breve commento. Dato che Repo Hero sarà estremamente popolare, dobbiamo considerare il fatto che per un singolo repository potrebbero esserci centinaia, anzi, migliaia di recensioni per quel repository.
 Non possiamo semplicemente visualizzare tutte le recensioni di un repository in una sola pagina. Invece, quello che faremo è mostrare solo un piccolo sottoinsieme delle recensioni per volta, permettendo all'utente di paginare attraverso queste recensioni per vederne di più.
 
 
-#### reazione del modello "review"
+## Creazione del modello "review"
 
 Prima di poter paginare attraverso le recensioni, dovremo creare un modello per rappresentarle. Possiamo farlo eseguendo il generatore di modelli:
 
@@ -34,7 +34,7 @@ end
 
 Con questo modello ora in atto, possiamo iniziare a vedere come visualizzare un elenco di recensioni per un repository utilizzando GraphQL.
 
-#### Utilizzo del tipo di connessione ("connection type") per mostrare le recensioni
+## Utilizzo del tipo di connessione ("connection type") per mostrare le recensioni
 
 Ora aggiungeremo un campo per le recensioni nella nostra API GraphQL. Una differenza significativa su questo campo è che sarà un campo paginato, il che significa che utilizzeremo un tipo diverso durante la definizione di questo campo. Il tipo che useremo si chiama "connection". Una connessione è un tipo utilizzato per rappresentare un elenco di elementi che possono essere paginati.
 
@@ -46,7 +46,7 @@ Innanzitutto, avremo bisogno di un `ReviewType` per rappresentare le nostre rece
 ```ruby
     module Types
         class ReviewType < Types::BaseObject
-            field :rating, ReviewRating, null: false
+            field :rating, Integer, null: false
             field :comment, String, null: false
         end
     end
@@ -131,7 +131,7 @@ Se avessimo qualche recensione per i repository configurata nella nostra applica
 }
 ```
 
-Il campo pageInfo è ciò che ci dice se ci sono altre recensioni da recuperare, e in tal caso, qual è il cursore per la pagina successiva delle recensioni. Il cursore qui è una stringa codificata in Base64 dell'ID del record - 10 in questo caso.
+Il campo `pageInfo` è ciò che ci dice se ci sono altre recensioni da recuperare, e in tal caso, qual è il cursore per la pagina successiva delle recensioni. Il cursore qui è una stringa codificata in Base64 dell'ID del record - 10 in questo caso.
 
 Per recuperare la pagina successiva delle recensioni, utilizziamo l'argomento `after` sul campo delle recensioni:
 
@@ -259,3 +259,57 @@ bundle exec rspec spec/requests/graphql/queries/repo_reviews_spec.rb
 ```
 
 Questo test passerà, poiché abbiamo il campo delle recensioni all'interno del nostro RepoType.
+
+
+## Impostare una dimensione massima della pagina
+
+Una cosa di cui fare attenzione quando si utilizza questo tipo di connessione è che il client GraphQL può fare una richiesta per recuperare quanti elementi desiderano in una pagina, a meno che non configuriamo la nostra API per prevenirlo. Alla fine del capitolo precedente, abbiamo discusso di un'opzione `max_complexity`. Questo sarebbe un buon modo per impedire una query come questa:
+
+```ruby
+query repoReviews($id: ID!) {
+    repo(id: $id) { # +1
+        name # +1
+        reviews(first: 1000) { # +1
+            nodes { # +1000
+                rating # +1000
+                comment # +1000
+            }
+        }
+    }
+}
+```
+Il punteggio di complessità di questa query è 3.003. Un punto ciascuno per il `repo`, il `name` e le `reviews`, e poi 1 punto ciascuno per le 1.000 recensioni che stiamo recuperando. Con un `max_complexity` di 100, questa query verrebbe rifiutata.
+
+Ma diciamo che non abbiamo impostato alcun `max_complexity`. Cosa possiamo fare invece per evitare una query del genere? Per impedire che ciò accada, possiamo impostare una dimensione massima della pagina sul tipo di connessione:
+
+`app/graphql/repo_type.rb`
+
+```ruby
+#...
+field :reviews, ReviewType.connection_type,
+    null: false, default_page_size: 10, max_page_size: 20
+#...
+```
+Ciò garantirà che non vengano restituite più di 20 recensioni alla volta per questa connessione. 
+
+Se volessimo che questo fosse il valore predefinito per tutte le raccolte paginate della nostra API GraphQL, potremmo anche impostarlo nella classe `RepoHeroSchema`:
+
+`app/graphql/repo_hero_schema.rb`
+
+```ruby
+class RepoHeroSchema < GraphQL::Schema
+    mutation(Types::MutationType)
+    query(Types::QueryType)
+    #...
+    max_depth 15
+    max_page_size 20
+end
+```
+Questa impostazione verrà utilizzata per tutte le connessioni per impostazione predefinita, ma può essere sovrascritta. Ad esempio, se volessimo che fossero restituite fino a 50 recensioni per i repository, ma solo 20 per tutto il resto, potremmo configurare la nostra connessione alle recensioni in questo modo:
+
+`app/graphql/repo_type.rb`
+```ruby
+field :reviews, ReviewType.connection_type,
+    null: false, default_page_size: 10, max_page_size: 50   
+```
+
